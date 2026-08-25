@@ -1,117 +1,183 @@
+# 🎯 IIT KGP ERP Job Agent — Web Dashboard
 
-LONG_WORK project
+> A complete, self‑contained dashboard to automate job applications on the IIT KGP ERP portal.  
+> Includes a first‑run wizard that securely collects all credentials, a real‑time approval UI, and full logging.
 
-1 files packaged
+---
 
-# Job Agent Web Dashboard — with Full Setup Wizard
+## ✨ Why This Dashboard?
 
-A complete Flask dashboard for the IIT KGP ERP job agent. Features a **first-run setup wizard** that forces you to enter all credentials (including ERP password and security questions) before you can use the dashboard. Also includes a clear guide for obtaining `credentials.json` for Gmail API.
+Manually checking the ERP portal for new job postings, matching them to your resume, and applying one‑by‑one is tedious. This tool:
 
-## Features
+- **Scrapes** the ERP portal periodically (or on‑demand).
+- **Matches** jobs against your resume using an LLM (you choose the model).
+- **Approval workflow** – review matched jobs in the browser, then apply with one click.
+- **Notifications** – get alerts via email or WhatsApp (SMTP / Twilio).
+- **Full setup wizard** – no manual `.env` editing required on first run.
 
-- **First-run wizard**: Blocks access until all required credentials are filled.
-- **Full credential management**: ERP username, password, all 3 security Q/A, Gmail OAuth files, SMTP, Twilio, etc.
-- **Dashboard**: Run agent, view status, stats, approvals, logs, summary.
-- **Approval UI**: Approve/reject matched jobs in the browser.
-- **Settings page**: Update non-sensitive config after setup.
-- **Gmail instructions**: Built-in guide for getting `credentials.json`.
+---
 
-## Quick Start
+## 🚀 Quick Start (5 minutes)
 
-1. **Install dependencies**:
-   ```bash
-   pip install -r requirements_web.txt
-   python -m playwright install chromium
+### 1. Prerequisites
+
+- Python 3.8+ installed.
+- A modern browser (Chrome / Firefox / Edge).
+- A Google Cloud project with Gmail API enabled (see [Gmail Setup](#-gmail-api-setup) below).
+
+### 2. Clone & Install
+
+```bash
+git clone https://github.com/yourusername/job-agent-dashboard.git
+cd job-agent-dashboard
+pip install -r requirements_web.txt
+python -m playwright install chromium
 ```
 
-2. **Run the dashboard**:
+### 3. Run the Dashboard
 
 ```
 python app.py
 ```
-3. **Open your browser** to `http://localhost:5000`.
 
-- The **setup wizard** will appear automatically.
-- Fill in all fields (especially ERP credentials and Gmail file paths).
-- Click **Save & Continue** to proceed.
-4. **Get Gmail credentials** (if you don't have them):
+Open `http://localhost:5000` in your browser.
+The **setup wizard** will appear automatically. Fill in:
 
-- Follow the instructions in the setup page (or click the "How to get credentials.json" link in Settings).
-- Place the downloaded `credentials.json` in the project root.
-5. **Use the dashboard**:
+- ERP username / password + security Q&A (all three).
+- Path to your `credentials.json` (Gmail OAuth) – you can place it anywhere.
+- Optional: SMTP / Twilio settings for notifications.
 
-- Click **Run Agent** → review approvals → click **Apply to Approved**.
+Click **Save & Continue** – the dashboard is now ready.
 
-## Environment Variables
+### 4. Use the Dashboard
 
-All settings are stored in `.env`. The setup wizard writes:
+- Click **Run Agent** – the scraper runs and shows matched jobs.
+- Review jobs in the **Approvals** tab – approve or reject each.
+- Click **Apply to Approved** – the agent applies to all approved jobs automatically.
+- View logs and statistics on the main dashboard.
 
-- `ERP_USERNAME`, `ERP_PASSWORD`
-- `ERP_SECURITY_Q1`, `ERP_SECURITY_A1`, etc.
-- `ERP_JOBS_URL`, `ERP_OTP_SENDER`
-- `GMAIL_CREDENTIALS_FILE`, `GMAIL_TOKEN_FILE`
-- `LLM_MODEL`, `RESUME_FILE`
-- Notification: SMTP, Twilio, email/WhatsApp targets
-- Runtime: `REQUIRE_APPROVAL`, `HEADLESS`
+---
 
-## Getting Gmail credentials.json
+## 🔐 Gmail API Setup (for sending applications)
+
+The agent uses Gmail to send application emails. You need a `credentials.json` file:
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/).
-2. Create a project and enable the **Gmail API**.
-3. Create **OAuth client ID** for a **Desktop application**.
-4. Download JSON and rename to `credentials.json`.
-5. Place it in the project root.
-6. The first agent run will open a browser for OAuth consent and generate `token.json` automatically.
+2. Create a new project (or select existing).
+3. Enable the **Gmail API** (Search for "Gmail API" → Enable).
+4. Go to **Credentials** → **Create Credentials** → **OAuth client ID**.
+5. Application type: **Desktop app**.
+6. Download the JSON and **rename it to `credentials.json`**.
+7. Place it in the project root (or any folder – you'll point to it in the wizard).
 
-## Project Structure
+On the first agent run, a browser window will open for OAuth consent – approve it, and a `token.json` will be generated automatically (saved next to your `credentials.json`).
+
+---
+
+## 📁 Project Structure
 
 ```
 flask_dashboard/
-├── app.py                  # Flask app with routes + first-run logic
-├── agent_web.py            # Agent runner with web state
+├── app.py                 # Flask application with routes & first‑run logic
+├── agent_web.py           # Core agent runner with web‑friendly state
 ├── templates/
-│   ├── setup.html          # First-run wizard (all credentials)
-│   ├── index.html          # Dashboard
-│   └── settings.html       # Settings (non-sensitive)
-├── requirements_web.txt
-├── run.sh / run.bat
+│   ├── setup.html         # First‑run wizard (all credentials)
+│   ├── index.html         # Main dashboard
+│   └── settings.html      # Update non‑sensitive settings
+├── requirements_web.txt   # Python dependencies
+├── run.sh / run.bat       # Quick start scripts (optional)
+├── .env.example           # Template for environment variables
 └── README.md
 ```
 
-## API Endpoints
+---
+
+## 🧩 Configuration (Environment Variables)
+
+All settings are stored in `.env` (auto‑generated by the wizard). Key variables:
+
+| Variable ↕▾ | Description ↕▾ |
+|---|---|
+| −`ERP_USERNAME`, `ERP_PASSWORD` | Your ERP login credentials |
+| −`ERP_SECURITY_Q1` … `ERP_SECURITY_A3` | Security questions (all three) |
+| `ERP_SECURITY_A1` … `ERP_SECURITY_A3` | Corresponding answers |
+| `ERP_JOBS_URL` | URL of the job listing page (default works for IIT KGP) |
+| `ERP_OTP_SENDER` | (Optional) Sender ID for OTP if required |
+| `GMAIL_CREDENTIALS_FILE` | Path to `credentials.json` |
+| `GMAIL_TOKEN_FILE` | Path where `token.json` will be stored |
+| `LLM_MODEL` | Model to use for matching (e.g., `gpt-3.5-turbo`, `claude-3-sonnet`) |
+| `RESUME_FILE` | Path to your plain‑text resume file (e.g., `resume.txt`) |
+| `REQUIRE_APPROVAL` | `true` to require manual approval before applying (recommended) |
+| `HEADLESS` | `true` to run browser in headless mode (no UI) |
+| SMTP / Twilio settings | For notifications (optional) |
+⚙
+
+> **Security**: `.env` contains plain‑text passwords. Protect the file and never commit it to version control.
+
+---
+
+## 🌐 API Endpoints (for automation)
 
 | Method ↕▾ | Endpoint ↕▾ | Description ↕▾ |
 |---|---|---|
-| −GET | `/` | Dashboard (redirects to setup if first run) |
-| −GET/POST | `/setup` | Setup wizard (POST saves) |
-| −GET | `/settings` | Settings page |
-| −GET | `/api/status` | Agent status |
-| POST | `/api/run` | Start agent |
-| POST | `/api/stop` | Stop agent |
-| GET | `/api/approvals` | Pending approvals |
-| POST | `/api/approve` | Approve job |
-| POST | `/api/reject` | Reject job |
-| POST | `/api/apply` | Apply to approved jobs |
-| POST | `/api/reset` | Reset state |
-| GET/POST | `/api/settings` | Get/update settings |
-| GET | `/api/logs` | Recent logs |
-| GET | `/api/gmail_instructions` | Gmail setup guide |
+| −`GET` | `/` | Dashboard (redirects to setup if not configured) |
+| `GET/POST` | `/setup` | Setup wizard – POST saves all settings |
+| `GET` | `/settings` | Update non‑sensitive settings |
+| `GET` | `/api/status` | Current agent status (idle / running / error) |
+| `POST` | `/api/run` | Start the agent (scrape & match) |
+| `POST` | `/api/stop` | Stop a running agent |
+| `GET` | `/api/approvals` | List pending approvals |
+| `POST` | `/api/approve` | Approve a specific job (body: `{"job_id": "..."}`) |
+| `POST` | `/api/reject` | Reject a job |
+| `POST` | `/api/apply` | Apply to all approved jobs |
+| `POST` | `/api/reset` | Reset agent state (clear approvals, logs) |
+| `GET/POST` | `/api/settings` | Get/update settings (sensitive fields hidden) |
+| `GET` | `/api/logs` | Retrieve recent log lines |
+| `GET` | `/api/gmail_instructions` | Gmail setup guide in HTML |
 ⚙
 
-## Security Notes
+---
 
-- Credentials are stored in **plain text** in `.env`. Protect this file.
-- The setup wizard does not hash passwords; they are written as-is.
-- Use environment variables or a secrets manager for production.
+## 🛠️ Troubleshooting Common Issues
 
-## Troubleshooting
+| Symptom | Likely Cause | Solution |
+|---|---|---|
+| **Setup wizard loops** | Missing required `.env` keys (e.g., no security Q/A) | Check `.env` – all fields must be populated. Re‑run wizard. |
+| **Gmail OAuth error** | Invalid `credentials.json` or missing `token.json` | Ensure `credentials.json` is valid and the project root is writable. Delete `token.json` and rerun to re‑authorize. |
+| **Playwright not found** | Chromium not installed | Run `python -m playwright install chromium` |
+| **Agent fails to scrape** | ERP portal structure changed or login issues | Check your ERP credentials and the jobs URL. Run with `HEADLESS=false` to see browser interaction. |
+| **No matches found** | Resume file missing or LLM not configured | Create a `resume.txt` in the project root. Ensure `LLM_MODEL` is set correctly. |
 
-- **First-run loop**: Check that `.env` has all required keys (username, password, at least 1 security Q/A, gmail_credentials_file, erp_jobs_url).
-- **Gmail OAuth errors**: Ensure `credentials.json` is valid and `token.json` is writable.
-- **Playwright errors**: Run `python -m playwright install chromium`.
-- **Missing resume**: Create a `resume.txt` file with your resume in plain text.
+---
 
-## License
+## 🔧 Development & Customization
 
-MIT (same as the original job agent).
+- **Agent logic**: Edit `agent_web.py` – the scraping and matching logic lives there.
+- **UI**: Modify `templates/*.html` – they use Bootstrap 5 and plain JavaScript.
+- **Add new settings**: Extend the wizard in `templates/setup.html` and the corresponding Flask routes in `app.py`.
 
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please open an issue or pull request.
+Areas we'd love help with:
+
+- Better LLM prompt engineering for matching.
+- Support for additional job portals.
+- Improved error handling and logging.
+- Unit tests.
+
+---
+
+## 📄 License
+
+MIT – feel free to use and modify for your own needs. Attribution appreciated but not required.
+
+---
+
+## 🙋‍♂️ Support
+
+For questions or feedback, open a GitHub issue or reach out to the maintainer.
+
+**Happy job hunting!** 🚀
