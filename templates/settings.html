@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Job Agent Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .settings-card { transition: all 0.2s ease; }
+        .settings-card:hover { border-color: #3b82f6; }
+        input, select, textarea {
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 8px 12px;
+            width: 100%;
+            font-size: 14px;
+            transition: border-color 0.15s ease;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        }
+        .form-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #374151;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .form-hint {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 2px;
+        }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-outline { background: transparent; border: 1px solid #d1d5db; }
+        .btn-outline:hover { background: #f3f4f6; }
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 16px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            z-index: 1000;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast-success { background: #22c55e; }
+        .toast-error { background: #ef4444; }
+        .toast-info { background: #3b82f6; }
+        .file-status { font-size: 12px; padding: 2px 8px; border-radius: 12px; display: inline-block; }
+        .file-exists { background: #dcfce7; color: #15803d; }
+        .file-missing { background: #fee2e2; color: #dc2626; }
+    </style>
+</head>
+<body class="bg-gray-50">
+
+    <div id="toast" class="toast"></div>
+
+    <nav class="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <a href="/" class="text-gray-600 hover:text-gray-900">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                <i class="fas fa-cog text-blue-600 text-xl"></i>
+                <span class="font-bold text-lg text-gray-800">Settings</span>
+            </div>
+            <div>
+                <span id="status-badge" class="text-xs px-2 py-1 rounded-full bg-gray-200 text-gray-600">Loading...</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-4xl mx-auto px-4 py-6">
+
+        <form id="settings-form" onsubmit="saveSettings(event)">
+            <!-- Agent Settings -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6 settings-card">
+                <h2 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <i class="fas fa-robot text-blue-600"></i> Agent Settings
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="form-label">ERP Username (Roll Number)</label>
+                        <input type="text" id="erp_username" placeholder="e.g. 25MA60R29" />
+                        <div class="form-hint">Your IIT KGP roll number.</div>
+                    </div>
+                    <div>
+                        <label class="form-label">ERP Jobs URL</label>
+                        <input type="text" id="erp_jobs_url" placeholder="https://erp.iitkgp.ac.in/.../jobs" />
+                        <div class="form-hint">The in-ERP page where jobs are listed.</div>
+                    </div>
+                    <div>
+                        <label class="form-label">LLM Model</label>
+                        <input type="text" id="llm_model" placeholder="gpt-4o-mini" />
+                        <div class="form-hint">OpenAI model name for evaluation.</div>
+                    </div>
+                    <div>
+                        <label class="form-label">Resume File</label>
+                        <input type="text" id="resume_file" placeholder="resume.txt" />
+                        <div class="form-hint">Path to your resume text file.</div>
+                    </div>
+                    <div>
+                        <label class="form-label">ERP OTP Sender</label>
+                        <input type="text" id="erp_otp_sender" placeholder="erpkgp@adm.iitkgp.ac.in" />
+                        <div class="form-hint">Email address that sends the OTP.</div>
+                    </div>
+                    <div>
+                        <label class="form-label">Security Questions Count</label>
+                        <input type="text" id="erp_security_answers_count" disabled class="bg-gray-50" />
+                        <div class="form-hint">Number of security question pairs configured in .env.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gmail -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6 settings-card">
+                <h2 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <i class="fas fa-envelope text-blue-600"></i> Gmail API
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="form-label">Credentials File</label>
+                        <input type="text" id="gmail_credentials_file" placeholder="credentials.json" />
+                        <div class="form-hint">OAuth credentials file.</div>
+                    </div>
+                    <div>
+                        <label class="form-label">Token File</label>
+                        <input type="text" id="gmail_token_file" placeholder="token.json" />
+                        <div class="form-hint">Cached OAuth token.</div>
+                    </div>
+                </div>
+                <div class="mt-2 flex items-center gap-4">
+                    <span class="text-sm text-gray-500">Status:</span>
+                    <span id="gmail-creds-status" class="file-status file-missing">Not found</span>
+                    <span id="gmail-token-status" class="file-status file-missing">Not found</span>
+                    <button type="button" onclick="fetchGmailInstructions()" class="text-xs text-blue-600 hover:underline">How to get credentials.json</button>
+                </div>
+            </div>
+
+            <!-- Notification Settings -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6 settings-card">
+                <h2 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <i class="fas fa-bell text-blue-600"></i> Notification Settings
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="form-label">Email Notification To</label>
+                        <input type="text" id="notify_email_to" placeholder="you@example.com" />
+                        <div class="form-hint">Email address for summary notifications.</div>
+                    </div>
+                    <div>
+                        <label class="form-label">WhatsApp Notification To</label>
+                        <input type="text" id="notify_whatsapp_to" placeholder="whatsapp:+91XXXXXXXXXX" />
+                        <div class="form-hint">WhatsApp number (with country code).</div>
+                    </div>
+                    <div>
+                        <label class="form-label">SMTP Host</label>
+                        <input type="text" id="smtp_host" placeholder="smtp.gmail.com" />
+                    </div>
+                    <div>
+                        <label class="form-label">SMTP Port</label>
+                        <input type="text" id="smtp_port" placeholder="465" />
+                    </div>
+                    <div>
+                        <label class="form-label">SMTP User</label>
+                        <input type="text" id="smtp_user" placeholder="your-email@gmail.com" />
+                    </div>
+                    <div>
+                        <label class="form-label">SMTP Password</label>
+                        <input type="password" id="smtp_password" placeholder="App password" />
+                        <div class="form-hint">For Gmail, use an App Password.</div>
+                    </div>
+                    <div>
+                        <label class="form-label">Twilio Account SID</label>
+                        <input type="text" id="twilio_account_sid" placeholder="AC..." />
+                    </div>
+                    <div>
+                        <label class="form-label">Twilio Auth Token</label>
+                        <input type="password" id="twilio_auth_token" placeholder="Your Twilio auth token" />
+                    </div>
+                    <div>
+                        <label class="form-label">Twilio WhatsApp From</label>
+                        <input type="text" id="twilio_whatsapp_from" placeholder="whatsapp:+14155238886" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Runtime Settings -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6 settings-card">
+                <h2 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <i class="fas fa-sliders-h text-blue-600"></i> Runtime Settings
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="require_approval" class="w-4 h-4 text-blue-600 rounded" />
+                        <label for="require_approval" class="text-sm text-gray-700">Require approval before applying</label>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="headless" class="w-4 h-4 text-blue-600 rounded" />
+                        <label for="headless" class="text-sm text-gray-700">Run browser in headless mode</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-4 flex-wrap">
+                <button type="submit" class="btn-primary px-6 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2">
+                    <i class="fas fa-save"></i> Save Settings
+                </button>
+                <a href="/" class="btn-outline px-6 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-700">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+                <button type="button" onclick="loadSettings()" class="text-gray-400 hover:text-gray-600 text-sm ml-auto">
+                    <i class="fas fa-undo"></i> Reload
+                </button>
+            </div>
+        </form>
+
+        <div class="mt-6 text-xs text-gray-400 border-t border-gray-200 pt-4">
+            <p><i class="fas fa-info-circle"></i> Settings are stored in <code>.env</code> in the project root.</p>
+            <p class="mt-1">To change ERP password or security questions, use the <a href="/setup" class="text-blue-600 hover:underline">Setup Wizard</a>.</p>
+        </div>
+    </div>
+
+    <script>
+        function showToast(message, type = 'info') {
+            const el = document.getElementById('toast');
+            el.textContent = message;
+            el.className = `toast toast-${type} show`;
+            clearTimeout(el._timeout);
+            el._timeout = setTimeout(() => el.classList.remove('show'), 4000);
+        }
+
+        function updateFileStatus(id, exists) {
+            const el = document.getElementById(id);
+            if (exists) {
+                el.textContent = '✅ Exists';
+                el.className = 'file-status file-exists';
+            } else {
+                el.textContent = '❌ Missing';
+                el.className = 'file-status file-missing';
+            }
+        }
+
+        async function loadSettings() {
+            try {
+                const resp = await fetch('/api/settings');
+                if (!resp.ok) throw new Error('Failed to load settings');
+                const data = await resp.json();
+
+                document.getElementById('erp_username').value = data.erp_username || '';
+                document.getElementById('erp_jobs_url').value = data.erp_jobs_url || '';
+                document.getElementById('llm_model').value = data.llm_model || 'gpt-4o-mini';
+                document.getElementById('resume_file').value = data.resume_file || 'resume.txt';
+                document.getElementById('erp_otp_sender').value = data.erp_otp_sender || '';
+                document.getElementById('erp_security_answers_count').value = data.erp_security_answers_count || 0;
+                document.getElementById('notify_email_to').value = data.notify_email_to || '';
+                document.getElementById('notify_whatsapp_to').value = data.notify_whatsapp_to || '';
+                document.getElementById('smtp_host').value = data.smtp_host || 'smtp.gmail.com';
+                document.getElementById('smtp_port').value = data.smtp_port || '465';
+                document.getElementById('smtp_user').value = data.smtp_user || '';
+                document.getElementById('smtp_password').value = data.smtp_password || '';
+                document.getElementById('gmail_credentials_file').value = data.gmail_credentials_file || 'credentials.json';
+                document.getElementById('gmail_token_file').value = data.gmail_token_file || 'token.json';
+                document.getElementById('twilio_account_sid').value = data.twilio_account_sid || '';
+                document.getElementById('twilio_auth_token').value = data.twilio_auth_token || '';
+                document.getElementById('twilio_whatsapp_from').value = data.twilio_whatsapp_from || 'whatsapp:+14155238886';
+
+                document.getElementById('require_approval').checked = data.require_approval !== false;
+                document.getElementById('headless').checked = data.headless === true;
+
+                // File status
+                updateFileStatus('gmail-creds-status', data.gmail_credentials_exists);
+                updateFileStatus('gmail-token-status', data.gmail_token_exists);
+
+                document.getElementById('status-badge').textContent = 'Loaded';
+                document.getElementById('status-badge').className = 'text-xs px-2 py-1 rounded-full bg-green-100 text-green-700';
+            } catch (e) {
+                showToast('Failed to load settings: ' + e.message, 'error');
+                document.getElementById('status-badge').textContent = 'Error';
+                document.getElementById('status-badge').className = 'text-xs px-2 py-1 rounded-full bg-red-100 text-red-700';
+            }
+        }
+
+        async function saveSettings(event) {
+            event.preventDefault();
+
+            const data = {
+                erp_username: document.getElementById('erp_username').value.trim(),
+                erp_jobs_url: document.getElementById('erp_jobs_url').value.trim(),
+                llm_model: document.getElementById('llm_model').value.trim(),
+                resume_file: document.getElementById('resume_file').value.trim(),
+                erp_otp_sender: document.getElementById('erp_otp_sender').value.trim(),
+                notify_email_to: document.getElementById('notify_email_to').value.trim(),
+                notify_whatsapp_to: document.getElementById('notify_whatsapp_to').value.trim(),
+                smtp_host: document.getElementById('smtp_host').value.trim(),
+                smtp_port: document.getElementById('smtp_port').value.trim(),
+                smtp_user: document.getElementById('smtp_user').value.trim(),
+                smtp_password: document.getElementById('smtp_password').value.trim(),
+                gmail_credentials_file: document.getElementById('gmail_credentials_file').value.trim(),
+                gmail_token_file: document.getElementById('gmail_token_file').value.trim(),
+                twilio_account_sid: document.getElementById('twilio_account_sid').value.trim(),
+                twilio_auth_token: document.getElementById('twilio_auth_token').value.trim(),
+                twilio_whatsapp_from: document.getElementById('twilio_whatsapp_from').value.trim(),
+                require_approval: document.getElementById('require_approval').checked ? 'true' : 'false',
+                headless: document.getElementById('headless').checked ? 'true' : 'false',
+            };
+
+            try {
+                const resp = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
+                const result = await resp.json();
+                if (result.error) {
+                    showToast('Error: ' + result.error, 'error');
+                    return;
+                }
+                showToast('Settings saved successfully!', 'success');
+                await loadSettings();
+            } catch (e) {
+                showToast('Failed to save: ' + e.message, 'error');
+            }
+        }
+
+        async function fetchGmailInstructions() {
+            try {
+                const resp = await fetch('/api/gmail_instructions');
+                const data = await resp.json();
+                const steps = data.steps.join('\n');
+                alert('How to get credentials.json:\n\n' + steps + '\n\n' + data.more_info);
+            } catch (e) {
+                showToast('Failed to load instructions', 'error');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadSettings);
+    </script>
+</body>
+</html>

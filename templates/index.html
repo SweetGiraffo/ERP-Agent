@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Agent Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+        .status-idle .status-dot { background: #9ca3af; }
+        .status-running .status-dot { background: #f59e0b; animation: pulse 1s infinite; }
+        .status-awaiting_approval .status-dot { background: #3b82f6; animation: pulse 1.5s infinite; }
+        .status-applying .status-dot { background: #8b5cf6; animation: pulse 1s infinite; }
+        .status-done .status-dot { background: #22c55e; }
+        .status-error .status-dot { background: #ef4444; }
+        .status-stopped .status-dot { background: #6b7280; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        .log-container {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #1a1a2e;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .log-container::-webkit-scrollbar { width: 6px; }
+        .log-container::-webkit-scrollbar-track { background: #1a1a2e; }
+        .log-container::-webkit-scrollbar-thumb { background: #4a4a6a; border-radius: 3px; }
+
+        .approval-card {
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }
+        .approval-card:hover { border-color: #e5e7eb; }
+        .approval-card.approved { border-color: #22c55e; background: #f0fdf4; }
+        .approval-card.rejected { border-color: #ef4444; background: #fef2f2; }
+
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-success { background: #22c55e; color: white; }
+        .btn-success:hover { background: #16a34a; }
+
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+
+        .btn-outline { background: transparent; border: 1px solid #d1d5db; }
+        .btn-outline:hover { background: #f3f4f6; }
+
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #1f2937; font-weight: 600; }
+        .tab-inactive { color: #6b7280; border-bottom: 2px solid transparent; }
+        .tab-inactive:hover { color: #1f2937; border-bottom: 2px solid #d1d5db; }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 16px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            z-index: 1000;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast-success { background: #22c55e; }
+        .toast-error { background: #ef4444; }
+        .toast-info { background: #3b82f6; }
+    </style>
+</head>
+<body class="bg-gray-50">
+
+    <div id="toast" class="toast"></div>
+
+    <!-- Nav -->
+    <nav class="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-robot text-blue-600 text-xl"></i>
+                <span class="font-bold text-lg text-gray-800">Job Agent Dashboard</span>
+                <span id="status-badge" class="ml-3 text-xs px-2 py-1 rounded-full bg-gray-200 text-gray-600">idle</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="/settings" class="text-gray-600 hover:text-gray-900 text-sm flex items-center gap-1">
+                    <i class="fas fa-cog"></i> Settings
+                </a>
+                <button onclick="resetAgent()" class="text-gray-400 hover:text-gray-600 text-sm">
+                    <i class="fas fa-undo"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 py-6">
+
+        <!-- Controls -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <div id="status-indicator" class="flex items-center gap-2 status-idle">
+                        <span class="status-dot"></span>
+                        <span id="status-text" class="text-sm font-medium text-gray-700">Idle</span>
+                    </div>
+                    <span id="status-detail" class="text-sm text-gray-400"></span>
+                </div>
+                <div class="flex gap-3">
+                    <button id="btn-run" onclick="runAgent()" class="btn-primary px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                        <i class="fas fa-play"></i> Run Agent
+                    </button>
+                    <button id="btn-stop" onclick="stopAgent()" class="btn-danger px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hidden">
+                        <i class="fas fa-stop"></i> Stop
+                    </button>
+                    <button id="btn-apply" onclick="applyJobs()" class="btn-success px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hidden">
+                        <i class="fas fa-check-double"></i> Apply to Approved
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick stats -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4 pt-4 border-t border-gray-100">
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-gray-800" id="stat-evaluated">0</div>
+                    <div class="text-xs text-gray-500">Evaluated</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-blue-600" id="stat-matches">0</div>
+                    <div class="text-xs text-gray-500">Matches</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-green-600" id="stat-approved">0</div>
+                    <div class="text-xs text-gray-500">Approved</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-red-500" id="stat-rejected">0</div>
+                    <div class="text-xs text-gray-500">Rejected</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-purple-600" id="stat-applied">0</div>
+                    <div class="text-xs text-gray-500">Applied</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex gap-6 border-b border-gray-200 mb-6">
+            <button class="tab-active pb-3 text-sm" data-tab="approvals" onclick="switchTab('approvals')">
+                <i class="fas fa-list"></i> Approvals
+                <span id="tab-approvals-count" class="ml-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">0</span>
+            </button>
+            <button class="tab-inactive pb-3 text-sm" data-tab="logs" onclick="switchTab('logs')">
+                <i class="fas fa-terminal"></i> Logs
+            </button>
+            <button class="tab-inactive pb-3 text-sm" data-tab="summary" onclick="switchTab('summary')">
+                <i class="fas fa-file-alt"></i> Summary
+            </button>
+        </div>
+
+        <!-- Tab: Approvals -->
+        <div id="tab-approvals" class="tab-content">
+            <div id="approvals-container" class="space-y-3">
+                <div class="text-center text-gray-400 py-12">
+                    <i class="fas fa-inbox text-4xl mb-3 block"></i>
+                    <p>No jobs awaiting approval.</p>
+                    <p class="text-sm">Run the agent to start evaluating jobs.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Logs -->
+        <div id="tab-logs" class="tab-content hidden">
+            <div class="log-container p-3 text-gray-300" id="log-container">
+                <div class="text-gray-500 text-center py-4">No logs yet.</div>
+            </div>
+            <button onclick="clearLogs()" class="mt-2 text-xs text-gray-400 hover:text-gray-600">
+                <i class="fas fa-eraser"></i> Clear
+            </button>
+        </div>
+
+        <!-- Tab: Summary -->
+        <div id="tab-summary" class="tab-content hidden">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <pre id="summary-text" class="whitespace-pre-wrap font-sans text-sm text-gray-700 leading-relaxed">No summary available.</pre>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ============================================================
+        // STATE
+        // ============================================================
+        let pollInterval = null;
+        let currentStatus = 'idle';
+        let approvals = [];
+        let isRunning = false;
+
+        // ============================================================
+        // UTILITY
+        // ============================================================
+        function showToast(message, type = 'info') {
+            const el = document.getElementById('toast');
+            el.textContent = message;
+            el.className = `toast toast-${type} show`;
+            clearTimeout(el._timeout);
+            el._timeout = setTimeout(() => el.classList.remove('show'), 4000);
+        }
+
+        function formatDate(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return d.toLocaleTimeString();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function getStatusBadge(status) {
+            const map = {
+                'idle': 'bg-gray-200 text-gray-600',
+                'running': 'bg-yellow-200 text-yellow-700',
+                'awaiting_approval': 'bg-blue-200 text-blue-700',
+                'applying': 'bg-purple-200 text-purple-700',
+                'done': 'bg-green-200 text-green-700',
+                'error': 'bg-red-200 text-red-700',
+                'stopped': 'bg-gray-200 text-gray-600',
+            };
+            return map[status] || 'bg-gray-200 text-gray-600';
+        }
+
+        function getStatusLabel(status) {
+            const map = {
+                'idle': 'Idle',
+                'running': 'Running...',
+                'awaiting_approval': 'Awaiting Approval',
+                'applying': 'Applying...',
+                'done': 'Done ✅',
+                'error': 'Error ❌',
+                'stopped': 'Stopped',
+            };
+            return map[status] || status;
+        }
+
+        // ============================================================
+        // UI UPDATES
+        // ============================================================
+        function updateStatus(data) {
+            const status = data.status || 'idle';
+            currentStatus = status;
+
+            // Badge
+            const badge = document.getElementById('status-badge');
+            badge.textContent = getStatusLabel(status);
+            badge.className = `ml-3 text-xs px-2 py-1 rounded-full ${getStatusBadge(status)}`;
+
+            // Indicator
+            const indicator = document.getElementById('status-indicator');
+            indicator.className = `flex items-center gap-2 status-${status}`;
+
+            const text = document.getElementById('status-text');
+            text.textContent = getStatusLabel(status);
+
+            const detail = document.getElementById('status-detail');
+            if (data.error) {
+                detail.textContent = `⚠️ ${data.error}`;
+                detail.className = 'text-sm text-red-500';
+            } else if (status === 'running') {
+                detail.textContent = `Started at ${formatDate(data.start_time)}`;
+                detail.className = 'text-sm text-gray-400';
+            } else if (status === 'done') {
+                detail.textContent = `Completed at ${formatDate(data.end_time)}`;
+                detail.className = 'text-sm text-gray-400';
+            } else {
+                detail.textContent = '';
+                detail.className = 'text-sm text-gray-400';
+            }
+
+            // Stats
+            document.getElementById('stat-evaluated').textContent = data.evaluated_count || 0;
+            document.getElementById('stat-matches').textContent = data.approvals_count || 0;
+            document.getElementById('stat-approved').textContent = data.approved_count || 0;
+            document.getElementById('stat-rejected').textContent = data.rejected_count || 0;
+            document.getElementById('stat-applied').textContent = data.applied_count || 0;
+
+            // Tab count
+            document.getElementById('tab-approvals-count').textContent = data.approvals_count || 0;
+
+            // Buttons
+            const btnRun = document.getElementById('btn-run');
+            const btnStop = document.getElementById('btn-stop');
+            const btnApply = document.getElementById('btn-apply');
+
+            isRunning = status === 'running' || status === 'awaiting_approval' || status === 'applying';
+
+            if (status === 'idle' || status === 'done' || status === 'error' || status === 'stopped') {
+                btnRun.disabled = false;
+                btnRun.innerHTML = '<i class="fas fa-play"></i> Run Agent';
+                btnRun.className = 'btn-primary px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2';
+                btnStop.classList.add('hidden');
+            } else {
+                btnRun.disabled = true;
+                btnRun.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
+                btnRun.className = 'btn-primary px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2 opacity-50 cursor-not-allowed';
+                btnStop.classList.remove('hidden');
+            }
+
+            if (status === 'awaiting_approval') {
+                btnApply.classList.remove('hidden');
+                btnApply.disabled = false;
+            } else {
+                btnApply.classList.add('hidden');
+                btnApply.disabled = true;
+            }
+
+            // Summary
+            if (data.summary) {
+                document.getElementById('summary-text').textContent = data.summary;
+            }
+
+            // Logs
+            if (data.logs) {
+                renderLogs(data.logs);
+            }
+        }
+
+        function renderApprovals(approvalList) {
+            const container = document.getElementById('approvals-container');
+            approvals = approvalList;
+
+            if (!approvalList || approvalList.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-400 py-12">
+                        <i class="fas fa-check-circle text-4xl mb-3 block text-green-400"></i>
+                        <p>No jobs awaiting approval.</p>
+                        <p class="text-sm">Run the agent to start evaluating jobs.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            approvalList.forEach((job, index) => {
+                const isApproved = job.approved === true;
+                const isRejected = job.approved === false;
+                const isPending = job.approved === null || job.approved === undefined;
+
+                let cardClass = 'approval-card bg-white rounded-xl shadow-sm border border-gray-200 p-4';
+                if (isApproved) cardClass += ' approved';
+                if (isRejected) cardClass += ' rejected';
+
+                html += `
+                    <div class="${cardClass}" data-job-id="${escapeHtml(job.job_id)}">
+                        <div class="flex flex-wrap items-start justify-between gap-2">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-semibold text-gray-800">${escapeHtml(job.company)}</span>
+                                    <span class="text-gray-400">·</span>
+                                    <span class="text-gray-600">${escapeHtml(job.role)}</span>
+                                    ${job.deadline ? `<span class="text-xs text-gray-400">📅 ${escapeHtml(job.deadline)}</span>` : ''}
+                                    <span class="text-xs px-2 py-0.5 rounded-full ${isApproved ? 'bg-green-100 text-green-700' : isRejected ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}">
+                                        ${isApproved ? '✅ Approved' : isRejected ? '❌ Rejected' : '⏳ Pending'}
+                                    </span>
+                                </div>
+                                <div class="text-sm text-gray-500 mt-1 line-clamp-2">
+                                    ${escapeHtml(job.reason || 'No reason provided')}
+                                </div>
+                                ${job.description ? `
+                                    <details class="mt-2">
+                                        <summary class="text-xs text-blue-600 cursor-pointer hover:text-blue-800">View description</summary>
+                                        <div class="text-sm text-gray-600 mt-1 p-2 bg-gray-50 rounded border border-gray-100 max-h-40 overflow-y-auto whitespace-pre-wrap">${escapeHtml(job.description)}</div>
+                                    </details>
+                                ` : ''}
+                            </div>
+                            <div class="flex gap-2 flex-shrink-0">
+                                ${isPending ? `
+                                    <button onclick="approveJob('${escapeHtml(job.job_id)}')" class="btn-success px-3 py-1.5 rounded-lg text-sm flex items-center gap-1">
+                                        <i class="fas fa-check"></i> Approve
+                                    </button>
+                                    <button onclick="rejectJob('${escapeHtml(job.job_id)}')" class="btn-danger px-3 py-1.5 rounded-lg text-sm flex items-center gap-1">
+                                        <i class="fas fa-times"></i> Reject
+                                    </button>
+                                ` : ''}
+                                ${isApproved ? `<span class="text-xs text-green-600 px-2 py-1"><i class="fas fa-check-circle"></i> Approved</span>` : ''}
+                                ${isRejected ? `<span class="text-xs text-red-600 px-2 py-1"><i class="fas fa-times-circle"></i> Rejected</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderLogs(logs) {
+            const container = document.getElementById('log-container');
+            if (!logs || logs.length === 0) {
+                container.innerHTML = '<div class="text-gray-500 text-center py-4">No logs yet.</div>';
+                return;
+            }
+            let html = '';
+            logs.forEach(line => {
+                const escaped = escapeHtml(line);
+                html += `<div class="text-gray-300 hover:bg-gray-700/30 px-1 py-0.5">${escaped}</div>`;
+            });
+            container.innerHTML = html;
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('log-container').innerHTML = '<div class="text-gray-500 text-center py-4">Logs cleared.</div>';
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+
+            document.querySelectorAll('[data-tab]').forEach(el => {
+                el.className = el.dataset.tab === tab ? 'tab-active pb-3 text-sm' : 'tab-inactive pb-3 text-sm';
+            });
+        }
+
+        // ============================================================
+        // API CALLS
+        // ============================================================
+        async function fetchStatus() {
+            try {
+                const resp = await fetch('/api/status');
+                const data = await resp.json();
+                updateStatus(data);
+
+                if (data.status === 'awaiting_approval') {
+                    await fetchApprovals();
+                }
+
+                if (data.status === 'done' || data.status === 'error' || data.status === 'stopped') {
+                    if (pollInterval) {
+                        clearInterval(pollInterval);
+                        pollInterval = null;
+                    }
+                }
+
+                return data;
+            } catch (e) {
+                console.error('Status fetch error:', e);
+                return null;
+            }
+        }
+
+        async function fetchApprovals() {
+            try {
+                const resp = await fetch('/api/approvals');
+                const data = await resp.json();
+                renderApprovals(data);
+                return data;
+            } catch (e) {
+                console.error('Approvals fetch error:', e);
+                return [];
+            }
+        }
+
+        async function runAgent() {
+            try {
+                const resp = await fetch('/api/run', { method: 'POST' });
+                const data = await resp.json();
+                if (data.error) {
+                    showToast(data.error, 'error');
+                    return;
+                }
+                showToast('Agent started!', 'success');
+
+                if (pollInterval) clearInterval(pollInterval);
+                pollInterval = setInterval(fetchStatus, 2000);
+
+                await fetchStatus();
+            } catch (e) {
+                showToast('Failed to start agent: ' + e.message, 'error');
+            }
+        }
+
+        async function stopAgent() {
+            try {
+                const resp = await fetch('/api/stop', { method: 'POST' });
+                const data = await resp.json();
+                if (data.error) {
+                    showToast(data.error, 'error');
+                    return;
+                }
+                showToast('Stop requested', 'info');
+                await fetchStatus();
+            } catch (e) {
+                showToast('Failed to stop: ' + e.message, 'error');
+            }
+        }
+
+        async function approveJob(jobId) {
+            try {
+                const resp = await fetch('/api/approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ job_id: jobId }),
+                });
+                const data = await resp.json();
+                if (data.error) {
+                    showToast(data.error, 'error');
+                    return;
+                }
+                showToast(`Approved job ${jobId}`, 'success');
+                await fetchApprovals();
+                await fetchStatus();
+            } catch (e) {
+                showToast('Failed to approve: ' + e.message, 'error');
+            }
+        }
+
+        async function rejectJob(jobId) {
+            try {
+                const resp = await fetch('/api/reject', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ job_id: jobId }),
+                });
+                const data = await resp.json();
+                if (data.error) {
+                    showToast(data.error, 'error');
+                    return;
+                }
+                showToast(`Rejected job ${jobId}`, 'info');
+                await fetchApprovals();
+                await fetchStatus();
+            } catch (e) {
+                showToast('Failed to reject: ' + e.message, 'error');
+            }
+        }
+
+        async function applyJobs() {
+            try {
+                const resp = await fetch('/api/apply', { method: 'POST' });
+                const data = await resp.json();
+                if (data.error) {
+                    showToast(data.error, 'error');
+                    return;
+                }
+                showToast('Applying to approved jobs...', 'info');
+                if (pollInterval) clearInterval(pollInterval);
+                pollInterval = setInterval(fetchStatus, 2000);
+                await fetchStatus();
+            } catch (e) {
+                showToast('Failed to apply: ' + e.message, 'error');
+            }
+        }
+
+        async function resetAgent() {
+            if (!confirm('Reset agent state? This will clear all approvals and logs.')) return;
+            try {
+                await fetch('/api/reset', { method: 'POST' });
+                showToast('Agent reset', 'info');
+                if (pollInterval) {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                }
+                await fetchStatus();
+                document.getElementById('approvals-container').innerHTML = `
+                    <div class="text-center text-gray-400 py-12">
+                        <i class="fas fa-inbox text-4xl mb-3 block"></i>
+                        <p>No jobs awaiting approval.</p>
+                        <p class="text-sm">Run the agent to start evaluating jobs.</p>
+                    </div>
+                `;
+            } catch (e) {
+                showToast('Reset failed: ' + e.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // INIT
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchStatus();
+            pollInterval = setInterval(fetchStatus, 5000);
+        });
+    </script>
+</body>
+</html>

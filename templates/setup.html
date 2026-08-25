@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup - Job Agent Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background: #f0f4ff; }
+        .setup-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+            padding: 32px;
+            max-width: 720px;
+            margin: 40px auto;
+        }
+        .form-group { margin-bottom: 20px; }
+        .form-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #1f2937;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .form-label .required { color: #ef4444; margin-left: 2px; }
+        .form-hint {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 2px;
+        }
+        input, select, textarea {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 10px 14px;
+            width: 100%;
+            font-size: 14px;
+            transition: border-color 0.15s ease;
+            background: #fafafa;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+            background: white;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+            padding: 12px 28px;
+            border-radius: 10px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: background 0.15s;
+            width: 100%;
+        }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 24px 0 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .section-title i { color: #3b82f6; margin-right: 8px; }
+        .flash-message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .flash-success { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+        .flash-error { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+        .gmail-instructions {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .gmail-instructions ol {
+            padding-left: 20px;
+            margin: 8px 0;
+            font-size: 13px;
+            color: #334155;
+        }
+        .gmail-instructions li { margin-bottom: 4px; }
+        .gmail-instructions a { color: #3b82f6; text-decoration: underline; }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 4px;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #3b82f6;
+            flex-shrink: 0;
+        }
+        .checkbox-group label { font-size: 14px; color: #374151; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="setup-card">
+        <div class="text-center mb-6">
+            <i class="fas fa-robot text-4xl text-blue-600 mb-2"></i>
+            <h1 class="text-2xl font-bold text-gray-800">Welcome to the Job Agent</h1>
+            <p class="text-gray-500 text-sm">First-time setup — please fill in all required credentials.</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('setup') }}">
+            <!-- ERP Credentials -->
+            <div class="section-title"><i class="fas fa-university"></i> ERP Credentials</div>
+
+            <div class="form-group">
+                <label class="form-label">Roll Number <span class="required">*</span></label>
+                <input type="text" name="erp_username" value="{{ env.erp_username }}" placeholder="e.g. 25MA60R29" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">ERP Password <span class="required">*</span></label>
+                <input type="password" name="erp_password" value="{{ env.erp_password }}" placeholder="Your ERP password" required>
+                <div class="form-hint">Your IIT KGP ERP password.</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">ERP Jobs URL <span class="required">*</span></label>
+                <input type="text" name="erp_jobs_url" value="{{ env.erp_jobs_url }}" placeholder="https://erp.iitkgp.ac.in/.../jobs" required>
+                <div class="form-hint">The in-ERP page where jobs are listed (log in and copy the URL).</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">OTP Sender Email</label>
+                <input type="text" name="erp_otp_sender" value="{{ env.erp_otp_sender }}" placeholder="erpkgp@adm.iitkgp.ac.in">
+                <div class="form-hint">Email address that sends the OTP (default is correct).</div>
+            </div>
+
+            <div class="section-title"><i class="fas fa-question-circle"></i> Security Questions (3 pairs)</div>
+            <p class="text-sm text-gray-500 mb-4">ERP asks a random one of these each login. Enter the exact question text and your answer.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label class="form-label">Question 1 <span class="required">*</span></label>
+                    <input type="text" name="erp_security_q1" value="{{ env.erp_security_q1 }}" placeholder="What is your pet's name?" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Answer 1 <span class="required">*</span></label>
+                    <input type="text" name="erp_security_a1" value="{{ env.erp_security_a1 }}" placeholder="Your answer" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Question 2 <span class="required">*</span></label>
+                    <input type="text" name="erp_security_q2" value="{{ env.erp_security_q2 }}" placeholder="e.g. Mother's maiden name" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Answer 2 <span class="required">*</span></label>
+                    <input type="text" name="erp_security_a2" value="{{ env.erp_security_a2 }}" placeholder="Your answer" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Question 3 <span class="required">*</span></label>
+                    <input type="text" name="erp_security_q3" value="{{ env.erp_security_q3 }}" placeholder="e.g. City of birth" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Answer 3 <span class="required">*</span></label>
+                    <input type="text" name="erp_security_a3" value="{{ env.erp_security_a3 }}" placeholder="Your answer" required>
+                </div>
+            </div>
+
+            <!-- Gmail API -->
+            <div class="section-title"><i class="fas fa-envelope"></i> Gmail API (for OTP reading)</div>
+
+            <div class="form-group">
+                <label class="form-label">Credentials File</label>
+                <input type="text" name="gmail_credentials_file" value="{{ env.gmail_credentials_file }}" placeholder="credentials.json">
+                <div class="form-hint">Name of the OAuth credentials file (default: credentials.json).</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Token File</label>
+                <input type="text" name="gmail_token_file" value="{{ env.gmail_token_file }}" placeholder="token.json">
+                <div class="form-hint">Cached OAuth token (auto-generated after first consent).</div>
+            </div>
+
+            <!-- Gmail Instructions -->
+            <div class="gmail-instructions">
+                <p class="font-medium text-gray-700"><i class="fas fa-info-circle text-blue-600"></i> How to get credentials.json:</p>
+                <ol>
+                    <li>Go to <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a>.</li>
+                    <li>Create a new project or select an existing one.</li>
+                    <li>Enable the <strong>Gmail API</strong> for your project.</li>
+                    <li>Create credentials (<strong>OAuth client ID</strong>) for a <strong>Desktop application</strong>.</li>
+                    <li>Download the JSON file and rename it to <code>credentials.json</code>.</li>
+                    <li>Place it in the <strong>same folder</strong> as this app (or the path you set above).</li>
+                    <li>The first time the agent runs, it will open a browser for OAuth consent and generate <code>token.json</code> automatically.</li>
+                </ol>
+                <p class="text-xs text-gray-500 mt-1">Need more help? <a href="https://developers.google.com/gmail/api/quickstart/python" target="_blank">Official Quickstart Guide</a></p>
+            </div>
+
+            <!-- LLM -->
+            <div class="section-title"><i class="fas fa-brain"></i> LLM & Resume</div>
+
+            <div class="form-group">
+                <label class="form-label">LLM Model</label>
+                <input type="text" name="llm_model" value="{{ env.llm_model }}" placeholder="gpt-4o-mini">
+                <div class="form-hint">OpenAI model name (must have API key set in environment).</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Resume File <span class="required">*</span></label>
+                <input type="text" name="resume_file" value="{{ env.resume_file }}" placeholder="resume.txt" required>
+                <div class="form-hint">Path to your resume text file (plain text).</div>
+            </div>
+
+            <!-- Notifications -->
+            <div class="section-title"><i class="fas fa-bell"></i> Notifications</div>
+
+            <div class="form-group">
+                <label class="form-label">Email Notification To</label>
+                <input type="text" name="notify_email_to" value="{{ env.notify_email_to }}" placeholder="you@example.com">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">SMTP Host</label>
+                <input type="text" name="smtp_host" value="{{ env.smtp_host }}" placeholder="smtp.gmail.com">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">SMTP Port</label>
+                <input type="text" name="smtp_port" value="{{ env.smtp_port }}" placeholder="465">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">SMTP User</label>
+                <input type="text" name="smtp_user" value="{{ env.smtp_user }}" placeholder="your-email@gmail.com">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">SMTP Password</label>
+                <input type="password" name="smtp_password" value="{{ env.smtp_password }}" placeholder="App password">
+                <div class="form-hint">For Gmail, use an App Password (not your regular password).</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">WhatsApp Notification To</label>
+                <input type="text" name="notify_whatsapp_to" value="{{ env.notify_whatsapp_to }}" placeholder="whatsapp:+91XXXXXXXXXX">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Twilio Account SID</label>
+                <input type="text" name="twilio_account_sid" value="{{ env.twilio_account_sid }}" placeholder="AC...">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Twilio Auth Token</label>
+                <input type="password" name="twilio_auth_token" value="{{ env.twilio_auth_token }}" placeholder="Your Twilio auth token">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Twilio WhatsApp From</label>
+                <input type="text" name="twilio_whatsapp_from" value="{{ env.twilio_whatsapp_from }}" placeholder="whatsapp:+14155238886">
+            </div>
+
+            <!-- Runtime -->
+            <div class="section-title"><i class="fas fa-sliders-h"></i> Runtime Options</div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" name="require_approval" id="require_approval" {% if env.require_approval == 'true' %}checked{% endif %}>
+                <label for="require_approval">Require approval before applying (recommended)</label>
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" name="headless" id="headless" {% if env.headless == 'true' %}checked{% endif %}>
+                <label for="headless">Run browser in headless mode (no visible window)</label>
+            </div>
+
+            <div class="mt-6">
+                <button type="submit" class="btn-primary">
+                    <i class="fas fa-save"></i> Save & Continue to Dashboard
+                </button>
+            </div>
+            <p class="text-xs text-gray-400 text-center mt-4">All credentials are stored in the <code>.env</code> file in plain text. Keep it secure.</p>
+        </form>
+    </div>
+
+</body>
+</html>
